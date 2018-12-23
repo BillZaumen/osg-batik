@@ -29,96 +29,68 @@ SECPOLICY = /usr/share/bzdev/libbzdev.policy
 # temporarily remove the provider
 
 JAVA = java -Djava.security.policy=test.policy \
-	-classpath classes:$(BZDEVLIBS):$(BATIK):$(PROVIDER)
+	-classpath classes:$(BZDEVLIBS):$(PROVIDER)
 
 JAVAM = java -Djava.security.policy=test.policy \
-	-p $(BZDEVLIBS):$(BATIK):$(PROVIDER) \
+	-p $(BZDEVLIBS):$(PROVIDER) \
 	--add-modules org.bzdev.desktop \
 	-classpath classes
 
 
-all: test.policy
+all: test.policy batik
+	@echo NOW TEST OSG PROVIDER
 	(cd .. ; make )
 	mkdir -p classes
 	javac -d classes -classpath $(BZDEVLIBS) Test.java
+
+	@echo CLASSPATH TESTS ...
 	rm -f *.svg
 	@echo -------Test 1 ----------------
-	[ -f /usr/share/java/batik.jar ] && $(JAVA) Test svg  \
-		|| echo ... skipping
+	$(JAVA) Test svg
 	@echo ------- Test 2 ----------------
-	[ -f /usr/share/java/batik.jar ] && $(JAVA) Test svg NORMAL \
-		|| echo ... skipping
+	 $(JAVA) Test svg NORMAL
 	@echo ------- Test 1cw ----------------
-	[ -f /usr/share/java/batik.jar ] && $(JAVA) Test svg	\
-		CLOCKWISE90 || echo ... skipping
+	$(JAVA) Test svg CLOCKWISE90
 	@echo ------- Test 1ccw ----------------
-	[ -f /usr/share/java/batik.jar ] && $(JAVA) Test svg \
-		COUNTERCLOCKWISE90 || echo ... skipping
+	$(JAVA) Test svg COUNTERCLOCKWISE90
 	@echo ------- Test 3 ----------------
 	@$(JAVA) Test svgz
-
+	@echo MODULE-OPTIONS TESTS ...
+	rm -f *.svg
+	@echo -------Test 1 ----------------
+	$(JAVAM) Test svg
+	@echo ------- Test 2 ----------------
+	$(JAVAM) Test svg NORMAL
+	@echo ------- Test 1cw ----------------
+	$(JAVAM) Test svg CLOCKWISE90
+	@echo ------- Test 1ccw ----------------
+	$(JAVAM) Test svg COUNTERCLOCKWISE90
+	@echo ------- Test 3 ----------------
+	@$(JAVAM) Test svgz
 
 test.policy:
 	cat /usr/share/bzdev/libbzdev.policy > test.policy
 
-modtest: test.policy
-	(cd .. ; make )
-	mkdir -p classes
-	javac -d classes -classpath $(BZDEVLIBS) Test.java
-	rm -f *.svg
-	@echo -------Test 1 ----------------
-	[ -f /usr/share/java/batik.jar ] && $(JAVAM) Test svg  \
-		|| echo ... skipping
-	@echo ------- Test 2 ----------------
-	[ -f /usr/share/java/batik.jar ] && $(JAVAM) Test svg NORMAL \
-		|| echo ... skipping
-	@echo ------- Test 1cw ----------------
-	[ -f /usr/share/java/batik.jar ] && $(JAVAM) Test svg	\
-		CLOCKWISE90 || echo ... skipping
-	@echo ------- Test 1ccw ----------------
-	[ -f /usr/share/java/batik.jar ] && $(JAVAM) Test svg \
-		COUNTERCLOCKWISE90 || echo ... skipping
-	@echo ------- Test 3 ----------------
-	@$(JAVAM) Test svgz
-
-
-
-
 
 # Test using Batik directly instead of via a service provider.
 # This is basically a sanity check of the Batik installation
-# and a test that we've found the correct class path.
+# and a test that libosgbatik jar file contains enough of Batik
+# to function.
 
-batik: classes/BatikTest.class
-	java -classpath classes:$(BATIK) BatikTest batik.svg
+batik: classes classes/BatikTest.class
+	@echo TEST THAT libosgbatik.jar CONTAINS ENOUGH OF BATIK
+	(cd .. ; make )
+	java -classpath classes:../BUILD/libosgbatik.jar BatikTest batik.svg
 
 classes:
 	mkdir -p classes
 
-# Verify if the libosgbatik jar file specifies the Batik jar files
-# in its manifest.
-
-batik2: classes/BatikTest.class
-	java -classpath classes:../BUILD/libosgbatik.jar BatikTest batik2.svg
-
-
 classes/BatikTest.class: classes BatikTest.java
-	javac -d classes -classpath $(BATIK) BatikTest.java
-
-tstjar.jar:
-	mkdir -p classes1 
-	rm -f classes1/module-info.class
-	(cd tstmodule ; javac -d ../classes1 `find org -name '*.java'` )
-	jar cf tstjar.jar -C classes1 .
-
-btest1: tstjar.jar
 	(cd .. ; make )
-	mkdir -p classes
-	javac -d classes -classpath $(BZDEV):classes Test.java
-	java -classpath classes:tstjar.jar:../BUILD/libosgbatik.jar \
-		Test svg NORMAL
+	javac -d classes -classpath ../BUILD/libosgbatik.jar BatikTest.java
 
 clean:
 	rm -f test.policy
 	rm -rf classes
 	rm -f *.svg
+	rm -f *.svgz
