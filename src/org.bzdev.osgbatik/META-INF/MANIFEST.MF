@@ -1,0 +1,8 @@
+Implementation-Title: The Batik service provider for the bzdev class libary
+Implementation-Version: VERSION
+Implementation-Vendor:  Bill Zaumen
+Implementation-Vendor-ID: bzdev.org
+Specification-Title: The bzdev Batik service provider
+Specification-Version: VERSION
+Specification-Vendor:  Bill Zaumen
+Sealed: true
