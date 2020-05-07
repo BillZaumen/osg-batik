@@ -14,7 +14,7 @@ module org.bzdev.osgbatik {
     // we filtered its packages out to avoid module conflicts
     requires jdk.xml.dom; 
     requires org.bzdev.base;
-    requires org.bzdev.desktop;
+    requires org.bzdev.graphics;
     /*
       These are the automatic modules we would have used, but
       can't because packages in the Apache code are split up

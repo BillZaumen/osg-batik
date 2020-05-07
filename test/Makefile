@@ -21,8 +21,9 @@ PROVIDER = ../BUILD/libosgbatik.jar
 # BZDEV = /usr/share/java/libbzdev.jar
 BZDEVLIBS1 = /usr/share/java/libbzdev-base.jar
 BZDEVLIBS2 = /usr/share/java/libbzdev-obnaming.jar
-BZDEVLIBS3 = /usr/share/java/libbzdev-desktop.jar
-BZDEVLIBS = $(BZDEVLIBS1):$(BZDEVLIBS2):$(BZDEVLIBS3)
+BZDEVLIBS3 = /usr/share/java/libbzdev-math.jar
+BZDEVLIBS4 = /usr/share/java/libbzdev-graphics.jar
+BZDEVLIBS = $(BZDEVLIBS1):$(BZDEVLIBS2):$(BZDEVLIBS3):$(BZDEVLIBS4)
 SECPOLICY = /usr/share/bzdev/libbzdev.policy
 
 
@@ -33,7 +34,7 @@ JAVA = java -Djava.security.policy=test.policy \
 
 JAVAM = java -Djava.security.policy=test.policy \
 	-p $(BZDEVLIBS):$(PROVIDER) \
-	--add-modules org.bzdev.desktop \
+	--add-modules org.bzdev.graphics \
 	-classpath classes
 
 

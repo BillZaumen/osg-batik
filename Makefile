@@ -39,12 +39,13 @@ BATIK_JARS = $(shell for i in $(BATIK_NAMES); \
 
 BATIK_CLASS_DIR = BUILD/osgmod
 
-BZDEV_MODULES = base desktop
+BZDEV_MODULES = base graphics obnaming math
 BZDEV_JARS = $(shell for i in $(BZDEV_MODULES); \
 		do echo BUILD/libbzdev-$$i.jar ; done)
 
-
-EXTLIBS=BUILD/libbzdev-base.jar:BUILD/libbzdev-desktop.jar
+EXTLIB1 = BUILD/libbzdev-base.jar:BUILD/libbzdev-graphics.jar
+EXTLIB2 = BUILD/libbzdev-obnaming.jar
+EXTLIBS= $(EXTLIB1):$(EXTLIB2):BUILD/libbzdev-math.jar
 
 ALL = jarfile
 
