@@ -14,12 +14,15 @@ import java.awt.image.ColorModel;
 import java.awt.Image;
 import java.awt.image.RenderedImage;
 import java.awt.image.renderable.RenderableImage;
-import java.io.Writer;
-import java.io.OutputStreamWriter;
-import java.io.OutputStream;
+import java.io.FilterOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.util.Formatter;
 import java.util.ResourceBundle;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 import java.util.zip.GZIPOutputStream;
 
 import org.apache.batik.svggen.*;
@@ -45,6 +48,132 @@ import org.w3c.dom.Element;
  * org.bzdev.providers.osgbatik.lpack.OSG.
  */
 public class BatikGraphics extends OutputStreamGraphics {
+
+    /*
+     * We measure the height and width in points while
+     * Batik does not provide units so the default is pixels.
+     * This class fixes up the SVG element by adding units to the
+     * width and height attributes anb by adding a viewBox.
+     */
+    static class SVGFilter extends FilterOutputStream {
+	StringBuilder sb = new StringBuilder();
+	int gtcnt = 0;
+
+	public SVGFilter(OutputStream os) {
+	    super(os);
+	}
+
+	@Override
+	public void close()  throws IOException {
+	    super.close();
+	}
+
+	@Override
+	public void flush()  throws IOException {
+	    if (gtcnt == 3) {
+		super.flush();
+	    }
+	}
+
+	@Override
+	public void write(byte[] b)  throws IOException {
+	    for (int i = 0; i < b.length; i++) {
+		if (gtcnt == 3) {
+		    super.write(b, i, b.length);
+		    return;
+		} else {
+		    handleChar((int) b[i]);
+		}
+	    }
+	}
+
+	@Override
+	public void write(byte[] b, int off, int len)  throws IOException {
+	    for (int i = off; i < len; i++) {
+		if (gtcnt == 3) {
+		    super.write(b, i, len);
+		    return;
+		} else {
+		    len--;
+		    handleChar((int) b[i]);
+		}
+	    }
+	}
+
+	@Override
+	public void write(int b) throws IOException {
+	    if (gtcnt == 3) {
+		super.write(b);
+	    } else {
+		handleChar(b);
+	    }
+	}
+
+	void handleChar(int b) throws IOException {
+	    if (b == '>') gtcnt++;
+	    sb.append((char) b);
+	    if (gtcnt == 3) {
+		processStringBuffer();
+	    }
+	}
+
+	private static final Pattern pattern = Pattern
+	    .compile("\\swidth=\"|\\sheight=\"|>");
+
+	void processStringBuffer() throws IOException {
+	    Matcher matcher = pattern.matcher(sb);
+	    int wloc = -1, hloc = -1, gtloc = -1;
+	    int wlocEnd = -1, hlocEnd = -1;
+	    while (matcher.find()) {
+		int sindex = matcher.start();
+		int eindex = matcher.end();
+		String matched = sb.substring(sindex, eindex);
+		if (matched.startsWith(">")) {
+		    gtloc = sindex;
+		} else {
+		    matched = matched.substring(1);
+		    if (matched.startsWith("width")) {
+			wloc = eindex;
+			wlocEnd = wloc;
+			while (Character.isDigit(sb.charAt(wlocEnd))) {
+			    wlocEnd++;
+			}
+		    } else if (matched.startsWith("height")) {
+			hloc = eindex;
+			hlocEnd = hloc;
+			while (Character.isDigit(sb.charAt(hlocEnd))) {
+			    hlocEnd++;
+			}
+		    }
+		}
+	    }
+	    if (wloc != -1 && hloc != -1 && gtloc != -1) {
+		if (sb.charAt(wlocEnd) == '"' && sb.charAt(hlocEnd) == '"') {
+		    // found the digits with nothing after them before the
+		    // closing quote.
+		    String width = sb.substring(wloc, wlocEnd);
+		    String height = sb.substring(hloc, hlocEnd);
+		    sb.insert(gtloc, " viewBox=\"0 0 " + width + " " + height
+			      + "\"");
+		    if (wloc < hloc) {
+			sb.insert(hlocEnd, "pt");
+			sb.insert(wlocEnd, "pt");
+		    } else {
+			sb.insert(wlocEnd, "pt");
+			sb.insert(hlocEnd, "pt");
+		    }
+		}
+	    }
+	    sb.chars().forEachOrdered(val -> {
+		    try {
+			super.write(val);
+		    } catch (IOException e) {
+		    }
+		});
+	    sb = null;
+	}
+    }
+
 
     private static ResourceBundle exbundle =
 	ResourceBundle.getBundle("org.bzdev.providers.osgbatik.lpack.OSG");
@@ -127,14 +256,18 @@ public class BatikGraphics extends OutputStreamGraphics {
 	OutputStream os = getOutputStream();
 	if (compress) {
 	    GZIPOutputStream gzos = new GZIPOutputStream(os);
-	    Writer out = new OutputStreamWriter(gzos, "UTF-8");
+	    OutputStream fos = new SVGFilter(gzos);
+	    Writer out = new OutputStreamWriter(fos, "UTF-8");
 	    svgGenerator.stream(out, useCSS);
 	    out.flush();
+	    fos.flush();
 	    gzos.finish();
 	} else {
-	    Writer out = new OutputStreamWriter(os, "UTF-8");
+	    OutputStream fos = new SVGFilter(os);
+	    Writer out = new OutputStreamWriter(fos, "UTF-8");
 	    svgGenerator.stream(out, useCSS);
 	    out.flush();
+	    fos.flush();
 	}
 	os.flush();
 	svgGenerator.dispose();

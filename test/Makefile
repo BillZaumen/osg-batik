@@ -95,3 +95,7 @@ clean:
 	rm -rf classes
 	rm -f *.svg
 	rm -f *.svgz
+
+filter:
+	javac -d classes SVGFilterTest.java SVGFilter.java
+	java -classpath classes SVGFilterTest out.svg > out1.svg
