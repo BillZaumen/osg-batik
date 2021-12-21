@@ -42,7 +42,7 @@ all: test.policy batik
 	@echo NOW TEST OSG PROVIDER
 	(cd .. ; make )
 	mkdir -p classes
-	javac -d classes -classpath $(BZDEVLIBS) Test.java
+	javac -d classes -classpath $(BZDEVLIBS) Test.java Test2.java
 
 	@echo CLASSPATH TESTS ...
 	rm -f *.svg
@@ -68,6 +68,16 @@ all: test.policy batik
 	$(JAVAM) Test svg COUNTERCLOCKWISE90
 	@echo ------- Test 3 ----------------
 	@$(JAVAM) Test svgz
+	@echo ------ SVG-mm Test -----
+	$(JAVA) Test2
+
+svgmm:	test.policy batik
+	(cd .. ; make )
+	mkdir -p classes
+	javac -d classes -classpath $(BZDEVLIBS) Test.java Test2.java
+	@echo ------ SVG-mm Test -----
+	$(JAVA) Test2
+
 
 test.policy:
 	cat /usr/share/bzdev/libbzdev.policy > test.policy
@@ -95,7 +105,3 @@ clean:
 	rm -rf classes
 	rm -f *.svg
 	rm -f *.svgz
-
-filter:
-	javac -d classes SVGFilterTest.java SVGFilter.java
-	java -classpath classes SVGFilterTest out.svg > out1.svg

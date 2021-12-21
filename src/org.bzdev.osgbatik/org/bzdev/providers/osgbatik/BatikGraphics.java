@@ -1,5 +1,6 @@
 package org.bzdev.providers.osgbatik;
 import org.bzdev.gio.OutputStreamGraphics;
+import org.bzdev.gio.SvgOps;
 import org.bzdev.gio.ImageOrientation;
 
 import java.awt.BasicStroke;
@@ -47,8 +48,30 @@ import org.w3c.dom.Element;
  * this class can load the resource bundle
  * org.bzdev.providers.osgbatik.lpack.OSG.
  */
-public class BatikGraphics extends OutputStreamGraphics {
+public class BatikGraphics extends OutputStreamGraphics implements SvgOps {
 
+    boolean useWH = false;
+    String widthUnit = "pt";
+    String heightUnit = "pt";
+    double width = 0.0;
+    double height = 0.0;
+
+    @Override
+    public void setDimensions(double width, String widthUnit,
+		       double height, String heightUnit)
+	throws IllegalStateException
+    {
+	if (done) throw new IllegalStateException();
+	this.width = width;
+	if (widthUnit != null) {
+	    this.widthUnit = widthUnit;
+	}
+	this.height = height;
+	if (heightUnit != null) {
+	    this.heightUnit = heightUnit;
+	}
+	useWH = true;
+    }
     /*
      * We measure the height and width in points while
      * Batik does not provide units so the default is pixels.
@@ -58,6 +81,33 @@ public class BatikGraphics extends OutputStreamGraphics {
     static class SVGFilter extends FilterOutputStream {
 	StringBuilder sb = new StringBuilder();
 	int gtcnt = 0;
+
+	String widthUnit = "pt";
+	String heightUnit = "pt";
+
+	boolean hasWidth = false;
+	double width = 0.0;
+
+	boolean hasHeight = false;
+	double height = 0.0;
+
+	void setDimensions(double width, String widthUnit,
+			   double height, String heightUnit)
+	    throws IOException
+	{
+	    if (gtcnt == 3) throw new IOException();
+	    this.width = width;
+	    if (widthUnit != null) {
+		this.widthUnit = widthUnit;
+	    }
+	    this.height = height;
+	    if (heightUnit != null) {
+		this.heightUnit = heightUnit;
+	    }
+	    hasWidth = true;
+	    hasHeight = true;
+	}
+
 
 	public SVGFilter(OutputStream os) {
 	    super(os);
@@ -77,11 +127,13 @@ public class BatikGraphics extends OutputStreamGraphics {
 
 	@Override
 	public void write(byte[] b)  throws IOException {
+	    int nlen = b.length;
 	    for (int i = 0; i < b.length; i++) {
 		if (gtcnt == 3) {
-		    super.write(b, i, b.length);
+		    super.write(b, i, nlen);
 		    return;
 		} else {
+		    nlen--;
 		    handleChar((int) b[i]);
 		}
 	    }
@@ -89,12 +141,13 @@ public class BatikGraphics extends OutputStreamGraphics {
 
 	@Override
 	public void write(byte[] b, int off, int len)  throws IOException {
+	    int nlen = len;
 	    for (int i = off; i < len; i++) {
 		if (gtcnt == 3) {
-		    super.write(b, i, len);
+		    super.write(b, i, nlen);
 		    return;
 		} else {
-		    len--;
+		    nlen--;
 		    handleChar((int) b[i]);
 		}
 	    }
@@ -118,12 +171,13 @@ public class BatikGraphics extends OutputStreamGraphics {
 	}
 
 	private static final Pattern pattern = Pattern
-	    .compile("\\swidth=\"|\\sheight=\"|>");
+	    .compile("\\swidth=\"|\\sheight=\"|\\sviewBox=\"|>");
 
 	void processStringBuffer() throws IOException {
 	    Matcher matcher = pattern.matcher(sb);
 	    int wloc = -1, hloc = -1, gtloc = -1;
 	    int wlocEnd = -1, hlocEnd = -1;
+	    int vbloc = -1;
 	    while (matcher.find()) {
 		int sindex = matcher.start();
 		int eindex = matcher.end();
@@ -131,6 +185,9 @@ public class BatikGraphics extends OutputStreamGraphics {
 		if (matched.startsWith(">")) {
 		    gtloc = sindex;
 		} else {
+		    // skip the whitespace character at the start because,
+		    // while it should be a space, it could be a tab or
+		    // newline character
 		    matched = matched.substring(1);
 		    if (matched.startsWith("width")) {
 			wloc = eindex;
@@ -144,23 +201,48 @@ public class BatikGraphics extends OutputStreamGraphics {
 			while (Character.isDigit(sb.charAt(hlocEnd))) {
 			    hlocEnd++;
 			}
+		    } else if (matched.startsWith("viewBox")) {
+			vbloc = sindex;
 		    }
 		}
 	    }
-	    if (wloc != -1 && hloc != -1 && gtloc != -1) {
+	    // the test is a sanity test plus requiring that no viewBox
+	    // was provided.
+	    if (wloc != -1 && hloc != -1 && gtloc != -1 && vbloc == -1) {
 		if (sb.charAt(wlocEnd) == '"' && sb.charAt(hlocEnd) == '"') {
 		    // found the digits with nothing after them before the
 		    // closing quote.
-		    String width = sb.substring(wloc, wlocEnd);
-		    String height = sb.substring(hloc, hlocEnd);
-		    sb.insert(gtloc, " viewBox=\"0 0 " + width + " " + height
-			      + "\"");
+		    String widthStr = sb.substring(wloc, wlocEnd);
+		    String heightStr = sb.substring(hloc, hlocEnd);
+
+		    sb.insert(gtloc, " viewBox=\"0 0 " + widthStr + " "
+			      + heightStr + "\"");
 		    if (wloc < hloc) {
-			sb.insert(hlocEnd, "pt");
-			sb.insert(wlocEnd, "pt");
+			if (hasHeight) {
+			    sb.replace(hloc, hlocEnd,
+				       "" + height + heightUnit);
+			} else {
+			    sb.insert(hlocEnd, "pt");
+			}
+			if (hasWidth) {
+			    sb.replace(wloc, wlocEnd,
+				       "" + width + widthUnit);
+			} else {
+			    sb.insert(wlocEnd, "pt");
+			}
 		    } else {
-			sb.insert(wlocEnd, "pt");
-			sb.insert(hlocEnd, "pt");
+			if (hasWidth) {
+			    sb.replace(wloc, wlocEnd,
+				       "" + width + widthUnit);
+			} else {
+			    sb.insert(wlocEnd, "pt");
+			}
+			if (hasHeight) {
+			    sb.replace(hloc, hlocEnd,
+				       "" + height + heightUnit);
+			} else {
+			    sb.insert(hlocEnd, "pt");
+			}
 		    }
 		}
 	    }
@@ -256,14 +338,20 @@ public class BatikGraphics extends OutputStreamGraphics {
 	OutputStream os = getOutputStream();
 	if (compress) {
 	    GZIPOutputStream gzos = new GZIPOutputStream(os);
-	    OutputStream fos = new SVGFilter(gzos);
+	    SVGFilter fos = new SVGFilter(gzos);
+	    if (useWH) {
+		fos.setDimensions(width, widthUnit, height, heightUnit);
+	    }
 	    Writer out = new OutputStreamWriter(fos, "UTF-8");
 	    svgGenerator.stream(out, useCSS);
 	    out.flush();
 	    fos.flush();
 	    gzos.finish();
 	} else {
-	    OutputStream fos = new SVGFilter(os);
+	    SVGFilter fos = new SVGFilter(os);
+	    if (useWH) {
+		fos.setDimensions(width, widthUnit, height, heightUnit);
+	    }
 	    Writer out = new OutputStreamWriter(fos, "UTF-8");
 	    svgGenerator.stream(out, useCSS);
 	    out.flush();
